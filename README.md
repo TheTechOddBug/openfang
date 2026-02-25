@@ -13,8 +13,7 @@
 <p align="center">
   <a href="https://openfang.sh/docs">Documentation</a> &bull;
   <a href="https://openfang.sh/docs/getting-started">Quick Start</a> &bull;
-  <a href="https://discord.gg/openfang">Discord</a> &bull;
-  <a href="https://x.com/openfang_ai">Twitter</a>
+  <a href="https://x.com/openfangg">Twitter / X</a>
 </p>
 
 <p align="center">
@@ -393,8 +392,7 @@ MIT — use it however you want.
 - [Website & Documentation](https://openfang.sh)
 - [Quick Start Guide](https://openfang.sh/docs/getting-started)
 - [GitHub](https://github.com/RightNow-AI/openfang)
-- [Discord](https://discord.gg/openfang)
-- [Twitter / X](https://x.com/openfang_ai)
+- [Twitter / X](https://x.com/openfangg)
 
 ---
 
