@@ -4842,6 +4842,7 @@ pub async fn list_providers(State(state): State<Arc<AppState>>) -> impl IntoResp
             "model_count": p.model_count,
             "key_required": p.key_required,
             "api_key_env": p.api_key_env,
+            "base_url": p.base_url,
         });
 
         // For local providers, add reachability info via health probe
@@ -5897,6 +5898,122 @@ pub async fn test_provider(
             })),
         ),
     }
+}
+
+/// PUT /api/providers/{name}/url — Set a custom base URL for a provider.
+pub async fn set_provider_url(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    // Validate provider exists
+    let provider_exists = {
+        let catalog = state
+            .kernel
+            .model_catalog
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
+        catalog.get_provider(&name).is_some()
+    };
+    if !provider_exists {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": format!("Unknown provider '{}'", name)})),
+        );
+    }
+
+    let base_url = match body["base_url"].as_str() {
+        Some(u) if !u.trim().is_empty() => u.trim().to_string(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "Missing or empty 'base_url' field"})),
+            );
+        }
+    };
+
+    // Validate URL scheme
+    if !base_url.starts_with("http://") && !base_url.starts_with("https://") {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "base_url must start with http:// or https://"})),
+        );
+    }
+
+    // Update catalog in memory
+    {
+        let mut catalog = state
+            .kernel
+            .model_catalog
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
+        catalog.set_provider_url(&name, &base_url);
+    }
+
+    // Persist to config.toml [provider_urls] section
+    let config_path = state.kernel.config.home_dir.join("config.toml");
+    if let Err(e) = upsert_provider_url(&config_path, &name, &base_url) {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to save config: {e}")})),
+        );
+    }
+
+    // Probe reachability at the new URL
+    let probe =
+        openfang_runtime::provider_health::probe_provider(&name, &base_url).await;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "saved",
+            "provider": name,
+            "base_url": base_url,
+            "reachable": probe.reachable,
+            "latency_ms": probe.latency_ms,
+        })),
+    )
+}
+
+/// Upsert a provider URL in the `[provider_urls]` section of config.toml.
+fn upsert_provider_url(
+    config_path: &std::path::Path,
+    provider: &str,
+    url: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let content = if config_path.exists() {
+        std::fs::read_to_string(config_path)?
+    } else {
+        String::new()
+    };
+
+    let mut doc: toml::Value = if content.trim().is_empty() {
+        toml::Value::Table(toml::map::Map::new())
+    } else {
+        toml::from_str(&content)?
+    };
+
+    let root = doc.as_table_mut().ok_or("Config is not a TOML table")?;
+
+    if !root.contains_key("provider_urls") {
+        root.insert(
+            "provider_urls".to_string(),
+            toml::Value::Table(toml::map::Map::new()),
+        );
+    }
+    let urls_table = root
+        .get_mut("provider_urls")
+        .and_then(|v| v.as_table_mut())
+        .ok_or("provider_urls is not a table")?;
+
+    urls_table.insert(provider.to_string(), toml::Value::String(url.to_string()));
+
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    std::fs::write(config_path, toml::to_string_pretty(&doc)?)?;
+    Ok(())
 }
 
 /// POST /api/skills/create — Create a local prompt-only skill.

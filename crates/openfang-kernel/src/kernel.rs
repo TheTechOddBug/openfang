@@ -590,9 +590,16 @@ impl OpenFangKernel {
             info!("RBAC enabled with {} users", auth.user_count());
         }
 
-        // Initialize model catalog and detect provider auth
+        // Initialize model catalog, detect provider auth, and apply URL overrides
         let mut model_catalog = openfang_runtime::model_catalog::ModelCatalog::new();
         model_catalog.detect_auth();
+        if !config.provider_urls.is_empty() {
+            model_catalog.apply_url_overrides(&config.provider_urls);
+            info!(
+                "applied {} provider URL override(s)",
+                config.provider_urls.len()
+            );
+        }
         let available_count = model_catalog.available_models().len();
         let total_count = model_catalog.list_models().len();
         let local_count = model_catalog
@@ -2761,6 +2768,14 @@ impl OpenFangKernel {
                     );
                     self.cron_scheduler
                         .set_max_total_jobs(new_config.max_cron_jobs);
+                }
+                HotAction::ReloadProviderUrls => {
+                    info!("Hot-reload: applying provider URL overrides");
+                    let mut catalog = self
+                        .model_catalog
+                        .write()
+                        .unwrap_or_else(|e| e.into_inner());
+                    catalog.apply_url_overrides(&new_config.provider_urls);
                 }
                 _ => {
                     // Other hot actions (channels, web, browser, extensions, etc.)

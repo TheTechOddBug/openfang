@@ -1039,6 +1039,10 @@ pub struct KernelConfig {
     /// Global spending budget configuration.
     #[serde(default)]
     pub budget: BudgetConfig,
+    /// Provider base URL overrides (provider ID → custom base URL).
+    /// e.g. `ollama = "http://192.168.1.100:11434/v1"`
+    #[serde(default)]
+    pub provider_urls: HashMap<String, String>,
 }
 
 /// Global spending budget configuration.
@@ -1183,6 +1187,7 @@ impl Default for KernelConfig {
             auth_profiles: HashMap::new(),
             thinking: None,
             budget: BudgetConfig::default(),
+            provider_urls: HashMap::new(),
         }
     }
 }

@@ -461,6 +461,10 @@ pub async fn build_router(
             axum::routing::post(routes::test_provider),
         )
         .route(
+            "/api/providers/{name}/url",
+            axum::routing::put(routes::set_provider_url),
+        )
+        .route(
             "/api/skills/create",
             axum::routing::post(routes::create_skill),
         )
